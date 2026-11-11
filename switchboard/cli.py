@@ -1,4 +1,6 @@
 import argparse
+import asyncio
+import logging
 import os
 from pathlib import Path
 import sqlite3
@@ -28,12 +30,19 @@ def main():
         p = sub.add_parser(command)
         p.add_argument("name", type=name)
     sub.add_parser("users")
+    serve_parser = sub.add_parser("serve")
+    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--port", type=int, default=2222)
     args = parser.parse_args()
     data = Path(args.data).resolve()
     data.mkdir(parents=True, exist_ok=True, mode=0o700)
     store = Store(data / "chat.sqlite3")
     try:
-        if args.command == "init":
+        if args.command == "serve":
+            from .server import serve
+            logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+            asyncio.run(serve(store, data, args.host, args.port))
+        elif args.command == "init":
             keypath = data / "host.key"
             if not keypath.exists():
                 key = asyncssh.generate_private_key("ssh-ed25519")
