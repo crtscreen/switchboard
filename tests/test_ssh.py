@@ -73,3 +73,16 @@ class SSHTests(unittest.IsolatedAsyncioTestCase):
         conn = await self.connect()
         with self.assertRaises(asyncssh.ChannelOpenError):
             await conn.create_process()
+
+    async def test_two_real_sessions(self):
+        self.store.add_user("bob", self.key.export_public_key().decode().strip())
+        alice = await self.connect()
+        bob = await self.connect(username="bob")
+        a = await alice.create_process(term_type="xterm")
+        b = await bob.create_process(term_type="xterm")
+        await self.read_until(b, "SWITCHBOARD")
+        a.stdin.write("hello bob\n")
+        await self.read_until(b, "alice: hello bob")
+        bob.close()
+        await bob.wait_closed()
+        await self.read_until(a, "bob left")

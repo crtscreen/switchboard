@@ -115,4 +115,5 @@ async def serve(store, data, host, port):
         await stop.wait()
     finally:
         server.close()
+        chat.shutdown()
         await server.wait_closed()
