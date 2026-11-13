@@ -49,7 +49,7 @@ class SSHTests(unittest.IsolatedAsyncioTestCase):
         await self.read_until(proc, "SWITCHBOARD")
         proc.stdin.write("hello\n")
         await self.read_until(proc, "alice: hello")
-        proc.stdin.write("/quit\n")
+        proc.stdin.write("/q\n")
         await asyncio.wait_for(proc.wait_closed(), 3)
 
     async def test_wrong_key_and_disabled_account(self):
