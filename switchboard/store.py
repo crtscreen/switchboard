@@ -6,6 +6,15 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY,
+                room TEXT NOT NULL,
+                sender TEXT NOT NULL,
+                body TEXT NOT NULL,
+                action INTEGER NOT NULL DEFAULT 0,
+                created TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now'))
+            );
+            CREATE INDEX IF NOT EXISTS messages_room_id ON messages(room,id);
             CREATE TABLE IF NOT EXISTS rooms (
                 name TEXT PRIMARY KEY,
                 topic TEXT NOT NULL DEFAULT ''
@@ -63,3 +72,22 @@ class Store:
     def set_topic(self, room, topic):
         with self.db:
             self.db.execute("UPDATE rooms SET topic=? WHERE name=?", (topic, room))
+
+    def save_message(self, room, sender, body, action=False):
+        with self.db:
+            self.db.execute(
+                "INSERT INTO messages(room,sender,body,action) VALUES(?,?,?,?)",
+                (room, sender, body, int(action)),
+            )
+            self.db.execute("""
+                DELETE FROM messages WHERE room=? AND id NOT IN
+                (SELECT id FROM messages WHERE room=? ORDER BY id DESC LIMIT 1000)
+            """, (room, room))
+        return self.history(room, 1)[0]
+
+    def history(self, room, count=20):
+        rows = self.db.execute(
+            "SELECT * FROM messages WHERE room=? ORDER BY id DESC LIMIT ?",
+            (room, count),
+        ).fetchall()
+        return list(reversed(rows))

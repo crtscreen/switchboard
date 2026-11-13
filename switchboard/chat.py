@@ -1,5 +1,5 @@
 from .util import text
-from . import rooms
+from . import rooms, history
 
 class Chat:
     def __init__(self, store):
@@ -13,6 +13,7 @@ class Chat:
         }
 
         rooms.install(self)
+        history.install(self)
 
     def connect(self, peer):
         user = self.store.user(peer.name)
@@ -24,6 +25,7 @@ class Chat:
         self.peers[peer.name] = peer
         peer.send("SWITCHBOARD")
         peer.send("You're connected! Type /help for commands.")
+        history.show(self, peer)
         self.broadcast(peer.room, f"* {peer.name} joined.")
 
     def disconnect(self, peer):
@@ -36,8 +38,9 @@ class Chat:
             if target.room == room:
                 target.send(message)
 
-    def say(self, peer, message):
-        self.broadcast(peer.room, f"{peer.name}: {message}")
+    def say(self, peer, message, action=False):
+        record = self.store.save_message(peer.room, peer.name, message, action)
+        self.broadcast(peer.room, history.render(record))
 
     def handle(self, peer, line):
         if not line.strip() or self.peers.get(peer.name) is not peer:

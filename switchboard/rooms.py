@@ -1,4 +1,5 @@
 from .util import name, text
+from .history import show
 
 def install(chat):
     def rooms(peer, argument):
@@ -17,6 +18,7 @@ def install(chat):
         chat.broadcast(old, f"* {peer.name} left for #{room}.")
         chat.broadcast(room, f"* {peer.name} joined #{room}.")
         peer.send(f"Topic: {chat.store.room(room)['topic'] or '(not set)'}")
+        show(chat, peer)
 
     def topic(peer, argument):
         if argument:
