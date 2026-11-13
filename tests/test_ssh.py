@@ -1,3 +1,4 @@
+"""Real SSH handshakes on ephemeral loopback ports, using temporary keys."""
 import asyncio
 import unittest
 import asyncssh
@@ -62,6 +63,7 @@ class SSHTests(unittest.IsolatedAsyncioTestCase):
         conn = await self.connect()
         with self.assertRaises(asyncssh.ChannelOpenError):
             await conn.create_process("id")
+        conn = await self.connect()
         with self.assertRaises(asyncssh.ChannelOpenError):
             await conn.create_process(subsystem="sftp")
         with self.assertRaises(asyncssh.ChannelOpenError):
@@ -86,3 +88,34 @@ class SSHTests(unittest.IsolatedAsyncioTestCase):
         bob.close()
         await bob.wait_closed()
         await self.read_until(a, "bob left")
+
+    async def test_extra_channel_and_shutdown(self):
+        conn = await self.connect()
+        proc = await conn.create_process(term_type="xterm")
+        await self.read_until(proc, "SWITCHBOARD")
+        with self.assertRaises(asyncssh.ChannelOpenError):
+            await conn.create_process(term_type="xterm")
+        self.chat.shutdown()
+        await asyncio.wait_for(conn.wait_closed(), 3)
+        self.assertFalse(self.chat.peers)
+
+    async def test_partial_input_survives_incoming_message(self):
+        self.store.add_user("bob", self.key.export_public_key().decode().strip())
+        alice = await self.connect()
+        bob = await self.connect(username="bob")
+        a = await alice.create_process(term_type="xterm")
+        b = await bob.create_process(term_type="xterm")
+        await self.read_until(a, "SWITCHBOARD")
+        await self.read_until(b, "SWITCHBOARD")
+        a.stdin.write("half")
+        await self.read_until(a, "half")
+        b.stdin.write("incoming\n")
+        await self.read_until(a, "bob: incoming")
+        a.stdin.write(" typed\n")
+        await self.read_until(b, "alice: half typed")
+
+    async def test_revoked_key_cannot_open_late_session(self):
+        conn = await self.connect()
+        self.store.set_key("alice", "replacement")
+        with self.assertRaises(asyncssh.ChannelOpenError):
+            await conn.create_process(term_type="xterm")

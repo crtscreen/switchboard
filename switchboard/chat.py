@@ -1,3 +1,5 @@
+import time
+from .limits import Bucket
 from .util import text
 from . import rooms, history, social, moderation
 
@@ -5,10 +7,13 @@ class Chat:
     def __init__(self, store):
         self.store = store
         self.peers = {}
+        self.connections = set()
         self.commands = {
             "help": (self.help, "/help - show commands"),
+            "clear": (self.clear, "/clear - clear your terminal"),
             "who": (self.who, "/who - list connected members"),
             "q": (self.quit, "/q - disconnect"),
+            "quit": (self.quit, "/quit - disconnect"),
         }
 
         rooms.install(self)
@@ -22,9 +27,16 @@ class Chat:
             raise ValueError("account unavailable.")
         if peer.name in self.peers:
             raise ValueError("this account is already connected!")
+        if len(self.peers) >= 64:
+            raise ValueError("The server is full, sorry! Try again later.")
+        peer.bucket = Bucket()
+        peer.last_active = time.monotonic()
+        peer.authorized_key = user["public_key"]
         peer.room = "lobby"
         self.peers[peer.name] = peer
-        peer.send("SWITCHBOARD")
+        peer.send("\x1b[1;36mSWITCHBOARD\x1b")
+        peer.send(f"Hello {peer.name}! You are currently in #lobby.")
+        peer.send(f"Topic: {self.store.room('lobby')['topic'] or '(not set)'}")
         peer.send("You're connected! Type /help for commands.")
         history.show(self, peer)
         self.broadcast(peer.room, f"* {peer.name} joined.")
@@ -51,6 +63,13 @@ class Chat:
             if not user or user["disabled"]:
                 peer.close("Account disabled.")
                 return
+            if line.strip() == "/q":
+                self.quit(peer, "")
+                return
+            if not peer.bucket.allow():
+                peer.close("Too many lines. Wait a bit, then reconnect.")
+                return
+            peer.last_active = time.monotonic()
             line = text(line)
             if line.startswith("/"):
                 command, _, argument = line[1:].partition(" ")
@@ -62,6 +81,19 @@ class Chat:
                 self.say(peer, line)
         except ValueError as exc:
             peer.send(f"! {exc}")
+
+    def clear(self, peer, argument):
+        peer.send("\x1b[2J\x1b[H")
+        peer.send(f"SWITCHBOARD | #{peer.room} | /help")
+
+    def tick(self):
+        now = time.monotonic()
+        for peer in list(self.peers.values()):
+            user = self.store.user(peer.name)
+            if not user or user["disabled"] or user["public_key"] != peer.authorized_key:
+                peer.close("Account changed. Please reconnect.")
+            elif now - peer.last_active >= 3600:
+                peer.close("You were disconnect for being AFK.")
 
     def help(self, peer, argument):
         for _, description in self.commands.values():
@@ -78,3 +110,5 @@ class Chat:
     def shutdown(self):
         for peer in list(self.peers.values()):
             peer.close("SHUTTING DOWN SERVER")
+        for connection in list(self.connections):
+            connection.close()
