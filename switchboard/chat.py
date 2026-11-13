@@ -1,5 +1,5 @@
 from .util import text
-from . import rooms, history, social
+from . import rooms, history, social, moderation
 
 class Chat:
     def __init__(self, store):
@@ -14,6 +14,7 @@ class Chat:
         rooms.install(self)
         history.install(self)
         social.install(self)
+        moderation.install(self)
 
     def connect(self, peer):
         user = self.store.user(peer.name)
