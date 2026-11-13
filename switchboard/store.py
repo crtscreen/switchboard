@@ -6,6 +6,11 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS rooms (
+                name TEXT PRIMARY KEY,
+                topic TEXT NOT NULL DEFAULT ''
+            );
+            INSERT OR IGNORE INTO rooms(name) VALUES ('lobby');
             CREATE TABLE IF NOT EXISTS users (
                 name TEXT PRIMARY KEY,
                 public_key TEXT NOT NULL,
@@ -40,3 +45,21 @@ class Store:
 
     def close(self):
         self.db.close()
+
+    def rooms(self):
+        return self.db.execute("SELECT * FROM rooms ORDER BY name").fetchall()
+
+    def room(self, room):
+        return self.db.execute("SELECT * FROM rooms WHERE name=?", (room,)).fetchone()
+
+    def create_room(self, room):
+        if self.room(room):
+            return
+        if len(self.rooms()) >= 32:
+            raise ValueError("This server already has 32 rooms.")
+        with self.db:
+            self.db.execute("INSERT INTO rooms(name) VALUES(?)", (room,))
+
+    def set_topic(self, room, topic):
+        with self.db:
+            self.db.execute("UPDATE rooms SET topic=? WHERE name=?", (topic, room))

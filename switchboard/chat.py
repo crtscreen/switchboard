@@ -1,4 +1,5 @@
 from .util import text
+from . import rooms
 
 class Chat:
     def __init__(self, store):
@@ -10,6 +11,8 @@ class Chat:
             "quit": (self.quit, "/quit - disconnect"),
             "q": (self.quit, "/quit - disconnect")
         }
+
+        rooms.install(self)
 
     def connect(self, peer):
         user = self.store.user(peer.name)
@@ -61,7 +64,9 @@ class Chat:
             peer.send(description)
 
     def who(self, peer, argument):
-        peer.send("Online: " + ", ".join(sorted(self.peers)))
+        peer.send("Online: " + ", ".join(
+            f"{p.name}@{p.room}" for p in sorted(self.peers.values(), key=lambda p: p.name)
+        ))
 
     def quit(self, peer, argument):
         peer.close("bye!")
