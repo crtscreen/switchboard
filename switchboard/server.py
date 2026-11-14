@@ -4,6 +4,11 @@ import signal
 import sqlite3
 import asyncssh
 from .chat import Chat
+from .limits import Failures
+from .passwords import hash_password, verify_password
+from .util import name as valid_name, password as valid_password
+
+MAX_ACCOUNTS = 500
 
 log = logging.getLogger(__name__)
 
@@ -86,14 +91,19 @@ class Session(asyncssh.SSHServerSession):
 
 
 class Server(asyncssh.SSHServer):
-    def __init__(self, chat):
+    def __init__(self, chat, failures):
         self.chat = chat
+        self.failures = failures
         self.connection = None
+        self.source = None
+        self.registering = False
         self.session_used = False
         self.authorized_key = None
 
     def connection_made(self, connection):
         self.connection = connection
+        peer = connection.get_extra_info("peername")
+        self.source = peer[0] if peer else None
         if len(self.chat.connections) >= 128:
             connection.abort()
         else:
@@ -110,28 +120,89 @@ class Server(asyncssh.SSHServer):
 
     def validate_public_key(self, username, key):
         user = self.chat.store.user(username)
-        valid = bool(user and not user["disabled"] and
+        # users with password have empty public key
+        valid = bool(user and user["public_key"] and not user["disabled"] and
                      key == asyncssh.import_public_key(user["public_key"]))
         if valid:
-            self.authorized_key = user["public_key"]
+            self.authorized_key = self.chat.store.credential(user)
         return valid
+
+    def kbdint_auth_supported(self):
+        return True
+
+    def password_challenge(self, username, note=""):
+        if self.registering:
+            instructions = (note + " " if note else "") + (
+                f"Creating account '{username}'. Choose a password that's 8-128 characters.")
+            return ("Create account", instructions, "",
+                    [("New password: ", False), ("Repeat password: ", False)])
+        return ("", note, "", [("Password: ", False)])
+
+    def get_kbdint_challenge(self, username, lang, submethods):
+        self.registering = False
+        if self.failures.blocked(self.source):
+            return False
+        user = self.chat.store.user(username)
+        if user is None:
+            try:
+                valid_name(username)
+            except ValueError:
+                return False
+            if len(self.chat.store.users()) >= MAX_ACCOUNTS:
+                return False
+            self.registering = True
+        elif user["disabled"] or user["admin"] or not user["password_hash"]:
+            return False
+        return self.password_challenge(username)
+
+    async def validate_kbdint_response(self, username, responses):
+        if self.failures.blocked(self.source) or len(responses) != (2 if self.registering else 1):
+            return False
+        store = self.chat.store
+        if self.registering:
+            try:
+                if responses[0] != responses[1]:
+                    raise ValueError("The passwords did not match.")
+                valid_password(responses[0])
+            except ValueError as exc:
+                self.failures.add(self.source)
+                return self.password_challenge(username, f"{exc} Try again.")
+            stored = await asyncio.to_thread(hash_password, responses[0])
+            try:
+                store.add_user(username, "", password_hash=stored)
+            except sqlite3.IntegrityError:
+                return False
+            self.failures.add(self.source)
+            self.registering = False
+            self.authorized_key = store.credential(store.user(username))
+            return True
+        user = store.user(username)
+        valid = bool(user and not user["disabled"] and not user["admin"] and
+                     await asyncio.to_thread(verify_password, responses[0],
+                                             user["password_hash"]))
+        if not valid:
+            self.failures.add(self.source)
+            return False
+        self.authorized_key = store.credential(user)
+        return True
 
     def session_requested(self):
         user = self.chat.store.user(self.connection.get_extra_info("username"))
         if (self.session_used or not user or user["disabled"] or
-                user["public_key"] != self.authorized_key):
+                self.chat.store.credential(user) != self.authorized_key):
             return False
         self.session_used = True
         return Session(self.chat)
 
-async def listen(chat, host, port, host_key):
+async def listen(chat, host, port, host_key, failures=None):
+    failures = failures or Failures()
     return await asyncssh.create_server(
         lambda: Server(chat), host, port,
         server_host_keys=[host_key],
-        password_auth=False, kbdint_auth=False,
+        password_auth=False, kbdint_auth=True,
         agent_forwarding=False, x11_forwarding=False,
         line_editor=True, line_echo=False, line_history=50,
-        max_line_length=500, login_timeout=30,
+        max_line_length=500, login_timeout=60,
         keepalive_interval=30, keepalive_count_max=3,
         encoding="utf-8", errors="replace",
     )

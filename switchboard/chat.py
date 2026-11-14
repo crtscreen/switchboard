@@ -31,7 +31,7 @@ class Chat:
             raise ValueError("The server is full, sorry! Try again later.")
         peer.bucket = Bucket()
         peer.last_active = time.monotonic()
-        peer.authorized_key = user["public_key"]
+        peer.authorized_key = self.store.credential(user)
         peer.room = "lobby"
         self.peers[peer.name] = peer
         peer.send("\x1b[1;36mSWITCHBOARD\x1b")
@@ -90,7 +90,7 @@ class Chat:
         now = time.monotonic()
         for peer in list(self.peers.values()):
             user = self.store.user(peer.name)
-            if not user or user["disabled"] or user["public_key"] != peer.authorized_key:
+            if not user or user["disabled"] or self.store.credential(user) != peer.authorized_key:
                 peer.close("Account changed. Please reconnect.")
             elif now - peer.last_active >= 3600:
                 peer.close("You were disconnect for being AFK.")

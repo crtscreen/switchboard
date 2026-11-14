@@ -8,9 +8,32 @@ The interface is super basic, there's no sections for different commands, settin
 
 Some of the main things I implemented are:
 
-- SSH authentication
-- Multiple chat rooms
-- Message history
-- Direct messages
-- Basic moderation
-- Input handling
+- Open registration: anyone can join a pick an available name and make a password to access the chat.
+- Multiple rooms: anyone can create and join rooms.
+- Direct messages: you can DM another online user.
+- Admin commands: kick, ban, announcements.
+- Input validation and rate limiting.
+
+## Commands
+
+| Command | Use |
+| --- | --- |
+| `/help` | List all commands |
+| `/who` | List all connected members and their current rooms |
+| `/rooms` | List public rooms, topics and user count |
+| `/join [room]` | Join (or create) [room] |
+| `/topic` | View current room's topic |
+| `/topic [text]` | **ADMIN:** set current room's topic |
+| `/history [1-100]` | View 1-100 previous messages |
+| `/msg [user] [text]` | Send a DM to another online user |
+| `/me [action]` | Post an action, e.g. "/me waves" |
+| `/clear` | Clear the terminal |
+| `/kick [user]` | **ADMIN:** Disconnect another user |
+| `/ban [user]` | **ADMIN:** Ban another user |
+| `/unban [user]` | **ADMIN:** Unban another user |
+| `/announce [text]` | **ADMIN:** Send a notice to every room |
+| `/q` | Disconnect |
+
+## Account creation
+
+Usernames have to be between 2 - 20 lowercase ASCII letters/digits/underscores/hyphens, and begin with a letter. You cannot change your username.
