@@ -12,3 +12,10 @@ def text(value, limit=500):
     if not all(char.isprintable() for char in value):
         raise ValueError("control char not allowed")
     return value
+
+def password(value):
+    if not 8 <= len(value) <= 128:
+        raise ValueError("Password must be 8-128 characters.")
+    if not value.isprintable():
+        raise ValueError("Control characters not allowed.")
+    return value

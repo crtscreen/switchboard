@@ -28,13 +28,36 @@ class Store:
             );
         """)
 
+        # older database accs w no password
+        columns = {row["name"] for row in self.db.execute("PRAGMA table_info(users)")}
+        if "password_hash" not in columns:
+            with self.db:
+                self.db.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+
     def user(self, username):
         return self.db.execute("SELECT * FROM users WHERE name=?", (username,)).fetchone()
 
-    def add_user(self, username, public_key, admin=False):
+    def add_user(self, username, public_key, admin=False, password_hash=None):
+        if admin and password_hash:
+            raise ValueError("Admin accounts use SSH keys only.")
         with self.db:
-            self.db.execute("INSERT INTO users(name,public_key,admin) VALUES(?,?,?)",
-                            (username, public_key, int(admin)))
+            self.db.execute(
+                "INSERT INTO users(name,public_key,admin,password_hash) VALUES(?,?,?,?)",
+                (username, public_key, int(admin), password_hash))
+
+    def credential(self, user):
+        return f"{user['public_key']}|{user['password_hash'] or ''}"
+
+    def set_password(self, username, password_hash):
+        user = self.user(username)
+        if not user:
+            raise ValueError("Unknown user.")
+        if user["admin"]:
+            raise ValueError("Admin accounts use SSH keys only.")
+        with self.db:
+            self.db.execute("UPDATE users SET password_hash=? WHERE name=?",
+                            (password_hash, username))
+
     def users(self):
         return self.db.execute("SELECT * FROM users ORDER BY name").fetchall()
 

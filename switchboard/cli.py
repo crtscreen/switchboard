@@ -1,12 +1,14 @@
 import argparse
 import asyncio
+import getpass
 import logging
 import os
 from pathlib import Path
 import sqlite3
 import asyncssh
+from .passwords import hash_password
 from .store import Store
-from .util import name
+from .util import name, password
 
 
 def public_key(path):
@@ -26,6 +28,8 @@ def main():
     rotate = sub.add_parser("set-key", help="Replace a user's public key")
     rotate.add_argument("name", type=name)
     rotate.add_argument("--key", required=True)
+    reset = sub.add_parser("set-password", help="Set a user's password.")
+    reset.add_argument("name", type=name)
     for command in ("disable", "enable"):
         p = sub.add_parser(command)
         p.add_argument("name", type=name)
@@ -56,13 +60,22 @@ def main():
         elif args.command == "set-key":
             store.set_key(args.name, public_key(args.key))
             print("Key replaced; existing sessions must reconnect.")
+        elif args.command == "set-password":
+            if not store.user(args.name):
+                raise ValueError("Unknown user.")
+            first = getpass.getpass("New password: ")
+            if first != getpass.getpass("Repeat password: "):
+                raise ValueError("Password did not match!")
+            store.set_password(args.name, hash_password(password(first)))
+            print("Password replaced. Existing sessions must reconnect.")
         elif args.command in ("disable", "enable"):
             store.disable(args.name, args.command == "disable")
             print("Account updated.")
         elif args.command == "users":
             for user in store.users():
                 print(user["name"], "admin" if user["admin"] else "member",
-                      "disabled" if user["disabled"] else "enabled")
+                      "disabled" if user["disabled"] else "enabled",
+                      "password" if user["password_hash"] else "key")
     except (ValueError, OSError, sqlite3.Error, asyncssh.Error) as exc:
         parser.exit(1, f"Error: {exc}\n")
     finally:
