@@ -1,0 +1,26 @@
+[Unit]
+Description=Switchboard SSH chat
+After=network.target
+
+[Service]
+Type=simple
+User=switchboard
+Group=switchboard
+WorkingDirectory=/opt/switchboard
+ExecStart=/opt/switchboard/.venv/bin/python -m switchboard --data /var/lib/switchboard serve --host 0.0.0.0 --port 2222
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+StateDirectory=switchboard
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictSUIDSGID=true
+LimitNOFILE=512
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target
