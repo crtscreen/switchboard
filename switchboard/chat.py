@@ -8,6 +8,7 @@ class Chat:
         self.store = store
         self.peers = {}
         self.connections = set()
+        self.admin_commands = set()
         self.commands = {
             "help": (self.help, "/help - show commands"),
             "clear": (self.clear, "/clear - clear your terminal"),
@@ -96,8 +97,10 @@ class Chat:
                 peer.close("You were disconnect for being AFK.")
 
     def help(self, peer, argument):
-        for _, description in self.commands.values():
-            peer.send(description)
+        is_admin = bool(self.store.user(peer.name)["admin"])
+        for command, (_, description) in self.commands.items():
+            if is_admin or command not in self.admin_commands:
+                peer.send(description)
 
     def who(self, peer, argument):
         peer.send("Online: " + ", ".join(

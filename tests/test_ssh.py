@@ -119,3 +119,22 @@ class SSHTests(unittest.IsolatedAsyncioTestCase):
         self.store.set_key("alice", "replacement")
         with self.assertRaises(asyncssh.ChannelOpenError):
             await conn.create_process(term_type="xterm")
+
+    async def test_help_hides_admin_commands_from_regular_users(self):
+        self.store.add_user("bob", self.key.export_public_key().decode().strip())
+        alice = await self.connect()
+        bob = await self.connect(username="bob")
+        a = await alice.create_process(term_type="xterm")
+        b = await bob.create_process(term_type="xterm")
+        await self.read_until(a, "SWITCHBOARD")
+        await self.read_until(b, "SWITCHBOARD")
+        b.stdin.write("/help\n/who\n")
+        member_help = await self.read_until(b, "Online:")
+        self.assertIn("/history", member_help)
+        self.assertNotIn("/kick", member_help)
+        self.assertNotIn("/ban", member_help)
+        self.assertNotIn("/announce", member_help)
+        a.stdin.write("/help\n/who\n")
+        admin_help = await self.read_until(a, "Online:")
+        self.assertIn("/kick", admin_help)
+        self.assertIn("/announce", admin_help)

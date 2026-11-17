@@ -46,3 +46,5 @@ def install(chat):
         "unban": (unban, "/unban user - ADMIN ONLY: re-enable an account"),
         "announce": (announce, "/announce text - ADMIN ONLY: send a message to every room"),
     })
+
+    chat.admin_commands.update({"kick", "ban", "unban", "announce"})
