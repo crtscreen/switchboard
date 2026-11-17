@@ -197,7 +197,7 @@ class Server(asyncssh.SSHServer):
 async def listen(chat, host, port, host_key, failures=None):
     failures = failures or Failures()
     return await asyncssh.create_server(
-        lambda: Server(chat), host, port,
+        lambda: Server(chat, failures), host, port,
         server_host_keys=[host_key],
         password_auth=False, kbdint_auth=True,
         agent_forwarding=False, x11_forwarding=False,
