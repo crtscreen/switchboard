@@ -114,3 +114,11 @@ class Store:
             (room, count),
         ).fetchall()
         return list(reversed(rows))
+
+    def clear_history(self, room=None):
+        with self.db:
+            if room is None:
+                cursor = self.db.execute("DELETE FROM messages")
+            else:
+                cursor = self.db.execute("DELETE FROM messages WHERE room=?", (room,))
+        return cursor.rowcount

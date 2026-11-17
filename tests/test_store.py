@@ -29,6 +29,17 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(rows[-1]["body"], "1002")
         self.assertEqual(self.store.history("other"), [])
 
+    def test_clear_history(self):
+        self.store.save_message("lobby", "alice", "one")
+        self.store.save_message("lobby", "alice", "two")
+        self.store.save_message("code", "alice", "three")
+        self.assertEqual(self.store.clear_history("lobby"), 2)
+        self.assertEqual(self.store.history("lobby"), [])
+        self.assertEqual(len(self.store.history("code")), 1)
+        self.assertEqual(self.store.clear_history(), 1)
+        self.assertEqual(self.store.history("code"), [])
+        self.assertEqual(self.store.clear_history(), 0)
+    
     def test_persistence_after_reopening(self):
         import tempfile
         from pathlib import Path
