@@ -2,6 +2,12 @@
 
 A small SSH chat server built with Python. I wanted to make something simple that multiple people can use over the terminal, and so the most straightforward thing was to make a chat app.
 
+To connect:
+
+```ssh
+ssh 172.204.144.111 -p 2222
+```
+
 ## Features
 
 The interface is super basic, there's no sections for different commands, settings or whatever, it's all just done from one line and everything is displayed as a scrolling transcript.
